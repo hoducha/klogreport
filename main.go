@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/fatih/color"
 )
 
 type Entry struct {
@@ -63,9 +65,9 @@ func formatDuration(mins int) string {
 	return fmt.Sprintf("%dm", m)
 }
 
-// printBar prints a simple text-based bar chart with dynamic scaling
-func printBar(label string, mins int, maxMins int) {
-	maxBarLength := 20
+// printBar prints a colorful text-based bar chart with dynamic scaling
+func printBar(label string, mins int, maxMins int, barColor *color.Color) {
+	maxBarLength := 30
 	barLength := 0
 	if maxMins > 0 {
 		barLength = (mins * maxBarLength) / maxMins
@@ -73,7 +75,27 @@ func printBar(label string, mins int, maxMins int) {
 	if barLength == 0 && mins > 0 {
 		barLength = 1
 	}
-	fmt.Printf("%-12s %s %s\n", label, strings.Repeat("█", barLength), formatDuration(mins))
+	
+	bar := strings.Repeat("█", barLength)
+	duration := formatDuration(mins)
+	
+	fmt.Printf("  %-14s ", label)
+	barColor.Print(bar)
+	fmt.Printf(" %s\n", color.HiWhiteString(duration))
+}
+
+// printSectionHeader prints a colorful section header
+func printSectionHeader(title string) {
+	fmt.Println()
+	color.HiCyanString("┌" + strings.Repeat("─", len(title)+2) + "┐")
+	color.HiCyan("│ %s │", title)
+	color.HiCyanString("└" + strings.Repeat("─", len(title)+2) + "┘")
+	fmt.Println()
+}
+
+// printSubsectionHeader prints a subsection header for projects
+func printSubsectionHeader(title string) {
+	fmt.Printf("  %s\n", color.HiYellowString(title))
 }
 
 type TimeData struct {
@@ -81,9 +103,9 @@ type TimeData struct {
 	Mins  int
 }
 
-// generateProjectReport generates "Total time by project" report
+// generateProjectReport generates "Project Time Spent" report
 func generateProjectReport(projects []Project) {
-	fmt.Println("=== Total Time by Project ===")
+	printSectionHeader("Project Time Spent")
 	var projectTimes []TimeData
 	maxMins := 0
 
@@ -92,25 +114,32 @@ func generateProjectReport(projects []Project) {
 		for _, record := range project.Data.Records {
 			totalMins += record.TotalMins
 		}
-		projectTimes = append(projectTimes, TimeData{project.Name, totalMins})
-		if totalMins > maxMins {
-			maxMins = totalMins
+		if totalMins > 0 { // Only include projects with time
+			projectTimes = append(projectTimes, TimeData{project.Name, totalMins})
+			if totalMins > maxMins {
+				maxMins = totalMins
+			}
 		}
+	}
+
+	if len(projectTimes) == 0 {
+		fmt.Printf("  %s\n", color.HiBlackString("No time logged yet"))
+		return
 	}
 
 	sort.Slice(projectTimes, func(i, j int) bool {
 		return projectTimes[i].Mins > projectTimes[j].Mins
 	})
 
+	projectColor := color.New(color.FgHiBlue)
 	for _, pt := range projectTimes {
-		printBar(pt.Label, pt.Mins, maxMins)
+		printBar(pt.Label, pt.Mins, maxMins, projectColor)
 	}
-	fmt.Println()
 }
 
-// generateTagsReport generates "Total time by tags" report
+// generateTagsReport generates "Tags Time Spent" report
 func generateTagsReport(projects []Project) {
-	fmt.Println("=== Total Time by Tags ===")
+	printSectionHeader("Tags Time Spent")
 	tagTotals := make(map[string]int)
 	maxMins := 0
 
@@ -127,6 +156,11 @@ func generateTagsReport(projects []Project) {
 		}
 	}
 
+	if len(tagTotals) == 0 {
+		fmt.Printf("  %s\n", color.HiBlackString("No tags found"))
+		return
+	}
+
 	var tagTimes []TimeData
 	for tag, mins := range tagTotals {
 		tagTimes = append(tagTimes, TimeData{tag, mins})
@@ -136,29 +170,56 @@ func generateTagsReport(projects []Project) {
 		return tagTimes[i].Mins > tagTimes[j].Mins
 	})
 
+	tagColor := color.New(color.FgHiGreen)
 	for _, tt := range tagTimes {
-		printBar(tt.Label, tt.Mins, maxMins)
+		printBar(tt.Label, tt.Mins, maxMins, tagColor)
 	}
-	fmt.Println()
 }
 
-// generateTagsPerProjectReport generates "Total time by tags per project" report
+// generateTagsPerProjectReport generates "Tags per Project" report
 func generateTagsPerProjectReport(projects []Project) {
-	fmt.Println("=== Total Time by Tags per Project ===")
+	printSectionHeader("Tags per Project")
 	
-	sort.Slice(projects, func(i, j int) bool {
+	// Filter and sort projects by total time
+	var activeProjects []Project
+	for _, project := range projects {
+		totalMins := 0
+		tagTotals := make(map[string]int)
+		
+		for _, record := range project.Data.Records {
+			totalMins += record.TotalMins
+			for _, entry := range record.Entries {
+				for _, tag := range entry.Tags {
+					tagTotals[tag] += entry.TotalMins
+				}
+			}
+		}
+		
+		if len(tagTotals) > 0 {
+			activeProjects = append(activeProjects, project)
+		}
+	}
+	
+	if len(activeProjects) == 0 {
+		fmt.Printf("  %s\n", color.HiBlackString("No tagged time found"))
+		return
+	}
+
+	sort.Slice(activeProjects, func(i, j int) bool {
 		totalI := 0
 		totalJ := 0
-		for _, record := range projects[i].Data.Records {
+		for _, record := range activeProjects[i].Data.Records {
 			totalI += record.TotalMins
 		}
-		for _, record := range projects[j].Data.Records {
+		for _, record := range activeProjects[j].Data.Records {
 			totalJ += record.TotalMins
 		}
 		return totalI > totalJ
 	})
 
-	for _, project := range projects {
+	tagColor := color.New(color.FgHiMagenta)
+	
+	for _, project := range activeProjects {
 		tagTotals := make(map[string]int)
 		maxMins := 0
 
@@ -173,11 +234,7 @@ func generateTagsPerProjectReport(projects []Project) {
 			}
 		}
 
-		if len(tagTotals) == 0 {
-			continue
-		}
-
-		fmt.Println(project.Name)
+		printSubsectionHeader(project.Name)
 
 		var tagTimes []TimeData
 		for tag, mins := range tagTotals {
@@ -189,15 +246,15 @@ func generateTagsPerProjectReport(projects []Project) {
 		})
 
 		for _, tt := range tagTimes {
-			printBar("  "+tt.Label, tt.Mins, maxMins)
+			printBar("  "+tt.Label, tt.Mins, maxMins, tagColor)
 		}
 		fmt.Println()
 	}
 }
 
-// generateDailyReport generates "Total time by days" report
+// generateDailyReport generates "Daily Working Time" report
 func generateDailyReport(projects []Project) {
-	fmt.Println("=== Total Time by Days ===")
+	printSectionHeader("Daily Working Time")
 	dayTotals := make(map[string]int)
 	maxMins := 0
 
@@ -210,6 +267,11 @@ func generateDailyReport(projects []Project) {
 		}
 	}
 
+	if len(dayTotals) == 0 {
+		fmt.Printf("  %s\n", color.HiBlackString("No daily data found"))
+		return
+	}
+
 	var dayTimes []TimeData
 	for date, mins := range dayTotals {
 		dayTimes = append(dayTimes, TimeData{date, mins})
@@ -219,10 +281,10 @@ func generateDailyReport(projects []Project) {
 		return dayTimes[i].Label < dayTimes[j].Label // Sort by date
 	})
 
+	dayColor := color.New(color.FgHiRed)
 	for _, dt := range dayTimes {
-		printBar(dt.Label, dt.Mins, maxMins)
+		printBar(dt.Label, dt.Mins, maxMins, dayColor)
 	}
-	fmt.Println()
 }
 
 func main() {
@@ -268,13 +330,26 @@ func main() {
 	})
 
 	if len(allProjects) == 0 {
-		fmt.Println("No .klg files found in", logDir)
+		color.HiRed("❌ No .klg files found in %s", logDir)
 		return
 	}
+
+	// Print header
+	fmt.Println()
+	color.HiCyan("═══════════════════════════════════════════════════════════")
+	color.HiCyan("                     KLOG TIME REPORT                      ")  
+	color.HiCyan("═══════════════════════════════════════════════════════════")
 
 	// Generate all reports
 	generateProjectReport(allProjects)
 	generateTagsReport(allProjects)
 	generateTagsPerProjectReport(allProjects)
 	generateDailyReport(allProjects)
+
+	// Print footer
+	fmt.Println()
+	color.HiBlack("─────────────────────────────────────────────────────────────")
+	totalProjects := len(allProjects)
+	color.HiBlack("%d project(s) processed", totalProjects)
+	color.HiBlack("─────────────────────────────────────────────────────────────")
 }
