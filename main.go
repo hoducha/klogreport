@@ -66,7 +66,7 @@ func formatDuration(mins int) string {
 }
 
 // printBar prints a colorful text-based bar chart with dynamic scaling
-func printBar(label string, mins int, maxMins int, barColor *color.Color) {
+func printBar(label string, mins int, maxMins int, barColor *color.Color, maxLabelWidth int) {
 	maxBarLength := 30
 	barLength := 0
 	if maxMins > 0 {
@@ -79,12 +79,21 @@ func printBar(label string, mins int, maxMins int, barColor *color.Color) {
 	bar := strings.Repeat("█", barLength)
 	duration := formatDuration(mins)
 	
-	fmt.Printf("  %-14s ", label)
+	fmt.Printf("  %-*s ", maxLabelWidth, label)
 	barColor.Print(bar)
 	fmt.Printf(" %s\n", color.HiWhiteString(duration))
 }
 
-// printSectionHeader prints a colorful section header
+func calculateMaxLabelWidth(labels []string) int {
+	maxWidth := 0
+	for _, label := range labels {
+		if len(label) > maxWidth {
+			maxWidth = len(label)
+		}
+	}
+	return maxWidth
+}
+
 func printSectionHeader(title string) {
 	fmt.Println()
 	color.HiCyanString("┌" + strings.Repeat("─", len(title)+2) + "┐")
@@ -93,7 +102,6 @@ func printSectionHeader(title string) {
 	fmt.Println()
 }
 
-// printSubsectionHeader prints a subsection header for projects
 func printSubsectionHeader(title string) {
 	fmt.Printf("  %s\n", color.HiYellowString(title))
 }
@@ -103,7 +111,6 @@ type TimeData struct {
 	Mins  int
 }
 
-// generateProjectReport generates "Project Time Spent" report
 func generateProjectReport(projects []Project) {
 	printSectionHeader("Project Time Spent")
 	var projectTimes []TimeData
@@ -131,13 +138,18 @@ func generateProjectReport(projects []Project) {
 		return projectTimes[i].Mins > projectTimes[j].Mins
 	})
 
+	var labels []string
+	for _, pt := range projectTimes {
+		labels = append(labels, pt.Label)
+	}
+	maxLabelWidth := calculateMaxLabelWidth(labels)
+
 	projectColor := color.New(color.FgHiBlue)
 	for _, pt := range projectTimes {
-		printBar(pt.Label, pt.Mins, maxMins, projectColor)
+		printBar(pt.Label, pt.Mins, maxMins, projectColor, maxLabelWidth)
 	}
 }
 
-// generateTagsReport generates "Tags Time Spent" report
 func generateTagsReport(projects []Project) {
 	printSectionHeader("Tags Time Spent")
 	tagTotals := make(map[string]int)
@@ -170,13 +182,18 @@ func generateTagsReport(projects []Project) {
 		return tagTimes[i].Mins > tagTimes[j].Mins
 	})
 
+	var labels []string
+	for _, tt := range tagTimes {
+		labels = append(labels, tt.Label)
+	}
+	maxLabelWidth := calculateMaxLabelWidth(labels)
+
 	tagColor := color.New(color.FgHiGreen)
 	for _, tt := range tagTimes {
-		printBar(tt.Label, tt.Mins, maxMins, tagColor)
+		printBar(tt.Label, tt.Mins, maxMins, tagColor, maxLabelWidth)
 	}
 }
 
-// generateTagsPerProjectReport generates "Tags per Project" report
 func generateTagsPerProjectReport(projects []Project) {
 	printSectionHeader("Tags per Project")
 	
@@ -245,14 +262,19 @@ func generateTagsPerProjectReport(projects []Project) {
 			return tagTimes[i].Mins > tagTimes[j].Mins
 		})
 
+		var labels []string
 		for _, tt := range tagTimes {
-			printBar("  "+tt.Label, tt.Mins, maxMins, tagColor)
+			labels = append(labels, "  "+tt.Label)
+		}
+		maxLabelWidth := calculateMaxLabelWidth(labels)
+
+		for _, tt := range tagTimes {
+			printBar("  "+tt.Label, tt.Mins, maxMins, tagColor, maxLabelWidth)
 		}
 		fmt.Println()
 	}
 }
 
-// generateDailyReport generates "Daily Working Time" report
 func generateDailyReport(projects []Project) {
 	printSectionHeader("Daily Working Time")
 	dayTotals := make(map[string]int)
@@ -281,9 +303,15 @@ func generateDailyReport(projects []Project) {
 		return dayTimes[i].Label < dayTimes[j].Label // Sort by date
 	})
 
+	var labels []string
+	for _, dt := range dayTimes {
+		labels = append(labels, dt.Label)
+	}
+	maxLabelWidth := calculateMaxLabelWidth(labels)
+
 	dayColor := color.New(color.FgHiRed)
 	for _, dt := range dayTimes {
-		printBar(dt.Label, dt.Mins, maxMins, dayColor)
+		printBar(dt.Label, dt.Mins, maxMins, dayColor, maxLabelWidth)
 	}
 }
 
