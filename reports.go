@@ -46,7 +46,7 @@ func generateProjectReport(projects []Project) {
 	}
 }
 
-func generateTagsReport(projects []Project) {
+func generateTagsReport(projects []Project, tagColorMap map[string]*color.Color) {
 	printSectionHeader("Tags Time Spent")
 	tagTotals := make(map[string]int)
 	maxMins := 0
@@ -84,13 +84,12 @@ func generateTagsReport(projects []Project) {
 	}
 	maxLabelWidth := calculateMaxLabelWidth(labels)
 
-	tagColor := color.New(color.FgHiGreen)
 	for _, tt := range tagTimes {
-		printBar(tt.Label, tt.Mins, maxMins, tagColor, maxLabelWidth)
+		printBar(tt.Label, tt.Mins, maxMins, tagColorMap[tt.Label], maxLabelWidth)
 	}
 }
 
-func generateTagsPerProjectReport(projects []Project) {
+func generateTagsPerProjectReport(projects []Project, tagColorMap map[string]*color.Color) {
 	printSectionHeader("Tags per Project")
 	
 	// Filter and sort projects by total time
@@ -130,8 +129,6 @@ func generateTagsPerProjectReport(projects []Project) {
 		return totalI > totalJ
 	})
 
-	tagColor := color.New(color.FgHiMagenta)
-	
 	for _, project := range activeProjects {
 		tagTotals := make(map[string]int)
 		maxMins := 0
@@ -165,7 +162,7 @@ func generateTagsPerProjectReport(projects []Project) {
 		maxLabelWidth := calculateMaxLabelWidth(labels)
 
 		for _, tt := range tagTimes {
-			printBar("  "+tt.Label, tt.Mins, maxMins, tagColor, maxLabelWidth)
+			printBar("  "+tt.Label, tt.Mins, maxMins, tagColorMap[tt.Label], maxLabelWidth)
 		}
 		fmt.Println()
 	}

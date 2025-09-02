@@ -64,9 +64,10 @@ func main() {
 	}
 
 	printHeader()
+	tagColorMap := getTagColorMap(allProjects)
 	generateProjectReport(allProjects)
-	generateTagsReport(allProjects)
-	generateTagsPerProjectReport(allProjects)
+	generateTagsReport(allProjects, tagColorMap)
+	generateTagsPerProjectReport(allProjects, tagColorMap)
 	generateDailyReport(allProjects)
 	printFooter(len(allProjects))
 }

@@ -2,12 +2,47 @@ package main
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/fatih/color"
 )
 
-// Bar chart rendering
+func getTagColorMap(projects []Project) map[string]*color.Color {
+	tagTotals := make(map[string]int)
+	
+	for _, project := range projects {
+		for _, record := range project.Data.Records {
+			for _, entry := range record.Entries {
+				for _, tag := range entry.Tags {
+					tagTotals[tag] += entry.TotalMins
+				}
+			}
+		}
+	}
+	
+	var tags []string
+	for tag := range tagTotals {
+		tags = append(tags, tag)
+	}
+	
+	sort.Strings(tags)
+	
+	const selectedPalette = "tableau10"
+	palette := colorPalettes[selectedPalette]
+	paletteSize := len(palette.Colors)
+	colorMap := make(map[string]*color.Color)
+	for i, tag := range tags {
+		if i < paletteSize {
+			colorMap[tag] = palette.Colors[i]
+		} else {
+			colorMap[tag] = generateOverflowColor(i, paletteSize)
+		}
+	}
+	
+	return colorMap
+}
+
 func printBar(label string, mins int, maxMins int, barColor *color.Color, maxLabelWidth int) {
 	maxBarLength := 30
 	barLength := 0
@@ -36,7 +71,6 @@ func calculateMaxLabelWidth(labels []string) int {
 	return maxWidth
 }
 
-// Section headers
 func printSectionHeader(title string) {
 	fmt.Println()
 	color.HiCyanString("┌" + strings.Repeat("─", len(title)+2) + "┐")
@@ -49,7 +83,6 @@ func printSubsectionHeader(title string) {
 	fmt.Printf("  %s\n", color.HiYellowString(title))
 }
 
-// Report headers and footers
 func printHeader() {
 	fmt.Println()
 	color.HiCyan("═══════════════════════════════════════════════════════════")
