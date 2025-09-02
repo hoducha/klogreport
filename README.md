@@ -44,7 +44,6 @@ If `KLOG_DIR` is not set, it defaults to `~/klog`.
 
 - [klog](https://klog.jotaen.net) - Must be installed and available in PATH
 - [fatih/color](https://github.com/fatih/color) - Terminal colors
-- [olekukonko/tablewriter](https://github.com/olekukonko/tablewriter) - Table formatting
 
 ## License
 
