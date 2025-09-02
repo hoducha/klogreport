@@ -9,40 +9,79 @@ import (
 
 func generateProjectReport(projects []Project) {
 	printSectionHeader("Project Time Spent")
-	var projectTimes []TimeData
+	
+	// Collect project data with tag breakdown
+	type ProjectInfo struct {
+		Name     string
+		Total    int
+		Segments []TagSegment
+	}
+	
+	var projectInfos []ProjectInfo
 	maxMins := 0
 
+	tagColorMap := getTagColorMap(projects)
+
 	for _, project := range projects {
+		tagTotals := make(map[string]int)
 		totalMins := 0
+		
 		for _, record := range project.Data.Records {
 			totalMins += record.TotalMins
+			for _, entry := range record.Entries {
+				for _, tag := range entry.Tags {
+					tagTotals[tag] += entry.TotalMins
+				}
+			}
 		}
+		
 		if totalMins > 0 {
-			projectTimes = append(projectTimes, TimeData{project.Name, totalMins})
+			// Create segments sorted by time (largest first)
+			var segments []TagSegment
+			for tag, mins := range tagTotals {
+				segments = append(segments, TagSegment{
+					Tag:   tag,
+					Mins:  mins,
+					Color: tagColorMap[tag],
+				})
+			}
+			
+			sort.Slice(segments, func(i, j int) bool {
+				return segments[i].Mins > segments[j].Mins
+			})
+			
+			projectInfos = append(projectInfos, ProjectInfo{
+				Name:     project.Name,
+				Total:    totalMins,
+				Segments: segments,
+			})
+			
 			if totalMins > maxMins {
 				maxMins = totalMins
 			}
 		}
 	}
 
-	if len(projectTimes) == 0 {
+	if len(projectInfos) == 0 {
 		fmt.Printf("  %s\n", color.HiBlackString("No time logged yet"))
 		return
 	}
 
-	sort.Slice(projectTimes, func(i, j int) bool {
-		return projectTimes[i].Mins > projectTimes[j].Mins
+	// Sort projects by total time
+	sort.Slice(projectInfos, func(i, j int) bool {
+		return projectInfos[i].Total > projectInfos[j].Total
 	})
 
+	// Calculate max label width
 	var labels []string
-	for _, pt := range projectTimes {
-		labels = append(labels, pt.Label)
+	for _, pi := range projectInfos {
+		labels = append(labels, pi.Name)
 	}
 	maxLabelWidth := calculateMaxLabelWidth(labels)
 
-	projectColor := color.New(color.FgHiBlue)
-	for _, pt := range projectTimes {
-		printBar(pt.Label, pt.Mins, maxMins, projectColor, maxLabelWidth)
+	// Print segmented bars
+	for _, pi := range projectInfos {
+		printSegmentedBar(pi.Name, pi.Segments, pi.Total, maxMins, maxLabelWidth)
 	}
 }
 
@@ -170,12 +209,35 @@ func generateTagsPerProjectReport(projects []Project, tagColorMap map[string]*co
 
 func generateDailyReport(projects []Project) {
 	printSectionHeader("Daily Working Time")
-	dayTotals := make(map[string]int)
+	
+	// Aggregate by day with tag breakdown
+	type DayInfo struct {
+		Date     string
+		Total    int
+		Segments []TagSegment
+	}
+	
+	dayTagTotals := make(map[string]map[string]int) // date -> tag -> mins
+	dayTotals := make(map[string]int)               // date -> total mins
 	maxMins := 0
+
+	// Get tag color mapping
+	tagColorMap := getTagColorMap(projects)
 
 	for _, project := range projects {
 		for _, record := range project.Data.Records {
+			if dayTagTotals[record.Date] == nil {
+				dayTagTotals[record.Date] = make(map[string]int)
+			}
+			
 			dayTotals[record.Date] += record.TotalMins
+			
+			for _, entry := range record.Entries {
+				for _, tag := range entry.Tags {
+					dayTagTotals[record.Date][tag] += entry.TotalMins
+				}
+			}
+			
 			if dayTotals[record.Date] > maxMins {
 				maxMins = dayTotals[record.Date]
 			}
@@ -187,23 +249,43 @@ func generateDailyReport(projects []Project) {
 		return
 	}
 
-	var dayTimes []TimeData
-	for date, mins := range dayTotals {
-		dayTimes = append(dayTimes, TimeData{date, mins})
+	var dayInfos []DayInfo
+	for date, total := range dayTotals {
+		var segments []TagSegment
+		for tag, mins := range dayTagTotals[date] {
+			segments = append(segments, TagSegment{
+				Tag:   tag,
+				Mins:  mins,
+				Color: tagColorMap[tag],
+			})
+		}
+		
+		// Sort segments by time (largest first)
+		sort.Slice(segments, func(i, j int) bool {
+			return segments[i].Mins > segments[j].Mins
+		})
+		
+		dayInfos = append(dayInfos, DayInfo{
+			Date:     date,
+			Total:    total,
+			Segments: segments,
+		})
 	}
 
-	sort.Slice(dayTimes, func(i, j int) bool {
-		return dayTimes[i].Label < dayTimes[j].Label
+	// Sort by date
+	sort.Slice(dayInfos, func(i, j int) bool {
+		return dayInfos[i].Date < dayInfos[j].Date
 	})
 
+	// Calculate max label width
 	var labels []string
-	for _, dt := range dayTimes {
-		labels = append(labels, dt.Label)
+	for _, di := range dayInfos {
+		labels = append(labels, di.Date)
 	}
 	maxLabelWidth := calculateMaxLabelWidth(labels)
 
-	dayColor := color.New(color.FgHiRed)
-	for _, dt := range dayTimes {
-		printBar(dt.Label, dt.Mins, maxMins, dayColor, maxLabelWidth)
+	// Print segmented bars
+	for _, di := range dayInfos {
+		printSegmentedBar(di.Date, di.Segments, di.Total, maxMins, maxLabelWidth)
 	}
 }

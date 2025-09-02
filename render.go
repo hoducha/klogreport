@@ -8,6 +8,13 @@ import (
 	"github.com/fatih/color"
 )
 
+// TagSegment represents a colored segment within a bar
+type TagSegment struct {
+	Tag   string
+	Mins  int
+	Color *color.Color
+}
+
 func getTagColorMap(projects []Project) map[string]*color.Color {
 	tagTotals := make(map[string]int)
 	
@@ -58,6 +65,50 @@ func printBar(label string, mins int, maxMins int, barColor *color.Color, maxLab
 	
 	fmt.Printf("  %-*s ", maxLabelWidth, label)
 	barColor.Print(bar)
+	fmt.Printf(" %s\n", color.HiWhiteString(duration))
+}
+
+// printSegmentedBar creates a bar with colored segments for tag distribution
+func printSegmentedBar(label string, segments []TagSegment, totalMins int, maxMins int, maxLabelWidth int) {
+	maxBarLength := 30
+	totalBarLength := 0
+	if maxMins > 0 {
+		totalBarLength = (totalMins * maxBarLength) / maxMins
+	}
+	if totalBarLength == 0 && totalMins > 0 {
+		totalBarLength = 1
+	}
+
+	// Calculate segment lengths proportionally
+	var segmentLengths []int
+	usedLength := 0
+	
+	for i, segment := range segments {
+		var segmentLength int
+		if i == len(segments)-1 {
+			// Last segment gets remaining length to avoid rounding errors
+			segmentLength = totalBarLength - usedLength
+		} else {
+			segmentLength = (segment.Mins * totalBarLength) / totalMins
+			if segmentLength == 0 && segment.Mins > 0 {
+				segmentLength = 1 // Ensure visible representation
+			}
+		}
+		segmentLengths = append(segmentLengths, segmentLength)
+		usedLength += segmentLength
+	}
+
+	// Print the bar
+	fmt.Printf("  %-*s ", maxLabelWidth, label)
+	
+	for i, segment := range segments {
+		if segmentLengths[i] > 0 {
+			bar := strings.Repeat("█", segmentLengths[i])
+			segment.Color.Print(bar)
+		}
+	}
+	
+	duration := formatDuration(totalMins)
 	fmt.Printf(" %s\n", color.HiWhiteString(duration))
 }
 
